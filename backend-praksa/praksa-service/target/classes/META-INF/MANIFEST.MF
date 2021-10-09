@@ -1,0 +1,94 @@
+Manifest-Version: 1.0
+Date: 2109241446
+Implementation-Title: ba.com.zira.praksa.praksa-service
+Implementation-Version: 1.0.0-SNAPSHOT
+Implementation-Build: 2109241446.${git.commitsCount}.${git.shortRevisi
+ on}
+Class-Path: postgresql-42.2.9.jar praksa-rest-1.0.0-SNAPSHOT.jar praks
+ a-api-1.0.0-SNAPSHOT.jar zira-commons-model-3.0-SNAPSHOT.jar javax.se
+ rvlet-api-4.0.1.jar commons-io-2.6.jar springfox-swagger2-2.9.2.jar s
+ wagger-annotations-1.5.20.jar swagger-models-1.5.20.jar springfox-spi
+ -2.9.2.jar springfox-core-2.9.2.jar springfox-schema-2.9.2.jar spring
+ fox-swagger-common-2.9.2.jar springfox-spring-web-2.9.2.jar classmate
+ -1.5.1.jar slf4j-api-1.7.29.jar spring-plugin-core-1.2.0.RELEASE.jar 
+ spring-plugin-metadata-1.2.0.RELEASE.jar springfox-swagger-ui-2.9.2.j
+ ar spring-web-5.2.4.RELEASE.jar spring-beans-5.2.4.RELEASE.jar spring
+ -core-5.2.4.RELEASE.jar spring-jcl-5.2.4.RELEASE.jar praksa-core-1.0.
+ 0-SNAPSHOT.jar praksa-dao-1.0.0-SNAPSHOT.jar HikariCP-3.4.1.jar hiber
+ nate-entitymanager-5.4.12.Final.jar jboss-logging-3.4.1.Final.jar dom
+ 4j-2.1.1.jar hibernate-commons-annotations-5.1.0.Final.jar javax.pers
+ istence-api-2.2.jar byte-buddy-1.10.8.jar jboss-transaction-api_1.2_s
+ pec-1.1.1.Final.jar hibernate-java8-5.4.12.Final.jar ojdbc7-12.1.0.2.
+ jar zira-commons-3.0-SNAPSHOT.jar hibernate-core-5.4.12.Final.jar jav
+ assist-3.24.0-GA.jar antlr-2.7.7.jar jandex-2.1.1.Final.jar javax.act
+ ivation-api-1.2.0.jar jaxb-api-2.3.1.jar jaxb-runtime-2.3.2.jar jakar
+ ta.xml.bind-api-2.3.2.jar txw2-2.3.2.jar istack-commons-runtime-3.0.8
+ .jar stax-ex-1.8.1.jar FastInfoset-1.2.16.jar jakarta.activation-api-
+ 1.2.2.jar spring-orm-5.2.4.RELEASE.jar spring-jdbc-5.2.4.RELEASE.jar 
+ spring-tx-5.2.4.RELEASE.jar spring-expression-5.2.4.RELEASE.jar sprin
+ g-security-core-5.2.2.RELEASE.jar commons-configuration-1.10.jar comm
+ ons-lang-2.6.jar commons-logging-1.1.1.jar commons-beanutils-1.9.4.ja
+ r commons-collections-3.2.2.jar aspectjweaver-1.9.5.jar spring-cloud-
+ starter-openfeign-2.2.2.RELEASE.jar spring-cloud-openfeign-core-2.2.2
+ .RELEASE.jar feign-form-spring-3.8.0.jar feign-form-3.8.0.jar commons
+ -fileupload-1.4.jar feign-core-10.7.4.jar feign-slf4j-10.7.4.jar feig
+ n-hystrix-10.7.4.jar rome-1.15.0.jar rome-utils-1.15.0.jar jdom2-2.0.
+ 6.jar commons-collections4-4.4.jar commons-jxpath-1.3.jar httpclient-
+ 4.5.11.jar httpcore-4.4.13.jar commons-codec-1.13.jar mapstruct-1.3.1
+ .Final.jar guava-28.2-android.jar failureaccess-1.0.1.jar listenablef
+ uture-9999.0-empty-to-avoid-conflict-with-guava.jar jsr305-3.0.2.jar 
+ checker-compat-qual-2.5.5.jar error_prone_annotations-2.3.4.jar j2obj
+ c-annotations-1.3.jar commons-daemon-1.2.2.jar spring-boot-starter-we
+ b-2.2.5.RELEASE.jar spring-boot-starter-2.2.5.RELEASE.jar spring-boot
+ -2.2.5.RELEASE.jar spring-boot-autoconfigure-2.2.5.RELEASE.jar spring
+ -boot-starter-logging-2.2.5.RELEASE.jar logback-classic-1.2.3.jar log
+ back-core-1.2.3.jar log4j-to-slf4j-2.12.1.jar log4j-api-2.12.1.jar ju
+ l-to-slf4j-1.7.30.jar jakarta.annotation-api-1.3.5.jar snakeyaml-1.25
+ .jar spring-boot-starter-json-2.2.5.RELEASE.jar jackson-datatype-jdk8
+ -2.10.2.jar jackson-datatype-jsr310-2.10.3.jar jackson-module-paramet
+ er-names-2.10.2.jar spring-boot-starter-tomcat-2.2.5.RELEASE.jar tomc
+ at-embed-core-9.0.31.jar tomcat-embed-el-9.0.31.jar tomcat-embed-webs
+ ocket-9.0.31.jar spring-boot-starter-validation-2.2.5.RELEASE.jar jak
+ arta.validation-api-2.0.2.jar hibernate-validator-6.0.18.Final.jar sp
+ ring-webmvc-5.2.4.RELEASE.jar spring-aop-5.2.4.RELEASE.jar spring-con
+ text-5.2.4.RELEASE.jar spring-boot-starter-actuator-2.2.5.RELEASE.jar
+  spring-boot-actuator-autoconfigure-2.2.5.RELEASE.jar spring-boot-act
+ uator-2.2.5.RELEASE.jar micrometer-core-1.3.5.jar HdrHistogram-2.1.11
+ .jar LatencyUtils-2.0.3.jar micrometer-registry-prometheus-1.3.5.jar 
+ simpleclient_common-0.7.0.jar simpleclient-0.7.0.jar spring-cloud-sta
+ rter-netflix-eureka-client-2.2.2.RELEASE.jar spring-cloud-starter-2.2
+ .2.RELEASE.jar spring-cloud-context-2.2.2.RELEASE.jar spring-security
+ -crypto-5.2.2.RELEASE.jar spring-cloud-commons-2.2.2.RELEASE.jar spri
+ ng-security-rsa-1.0.9.RELEASE.jar bcpkix-jdk15on-1.64.jar bcprov-jdk1
+ 5on-1.64.jar spring-cloud-netflix-hystrix-2.2.2.RELEASE.jar spring-bo
+ ot-starter-aop-2.2.5.RELEASE.jar spring-cloud-netflix-eureka-client-2
+ .2.2.RELEASE.jar eureka-client-1.9.17.jar jettison-1.3.7.jar stax-api
+ -1.0.1.jar netflix-eventbus-0.3.0.jar netflix-infix-0.3.0.jar joda-ti
+ me-2.10.5.jar antlr-runtime-3.4.jar stringtemplate-3.2.1.jar gson-2.8
+ .6.jar commons-math-2.2.jar archaius-core-0.7.6.jar jsr311-api-1.1.1.
+ jar servo-core-0.12.21.jar jersey-core-1.19.1.jar jersey-client-1.19.
+ 1.jar jersey-apache-client4-1.19.1.jar guice-4.1.0.jar javax.inject-1
+ .jar aopalliance-1.0.jar jackson-annotations-2.10.2.jar jackson-core-
+ 2.10.2.jar eureka-core-1.9.17.jar woodstox-core-5.2.1.jar stax2-api-4
+ .2.jar spring-cloud-starter-netflix-archaius-2.2.2.RELEASE.jar spring
+ -cloud-netflix-ribbon-2.2.2.RELEASE.jar spring-cloud-netflix-archaius
+ -2.2.2.RELEASE.jar spring-cloud-starter-netflix-ribbon-2.2.2.RELEASE.
+ jar ribbon-2.3.0.jar ribbon-transport-2.3.0.jar rxnetty-contexts-0.4.
+ 9.jar rxnetty-servo-0.4.9.jar hystrix-core-1.5.18.jar rxnetty-0.4.9.j
+ ar ribbon-core-2.3.0.jar ribbon-httpclient-2.3.0.jar netflix-commons-
+ util-0.3.0.jar ribbon-loadbalancer-2.3.0.jar netflix-statistics-0.1.1
+ .jar rxjava-1.3.8.jar spring-cloud-starter-loadbalancer-2.2.2.RELEASE
+ .jar spring-cloud-loadbalancer-2.2.2.RELEASE.jar reactor-core-3.3.3.R
+ ELEASE.jar reactive-streams-1.0.3.jar reactor-extra-3.3.2.RELEASE.jar
+  spring-boot-starter-cache-2.2.5.RELEASE.jar spring-context-support-5
+ .2.4.RELEASE.jar evictor-1.0.0.jar ribbon-eureka-2.3.0.jar xstream-1.
+ 4.11.1.jar xmlpull-1.1.3.1.jar xpp3_min-1.1.4c.jar spring-cloud-start
+ er-config-2.2.2.RELEASE.jar spring-cloud-config-client-2.2.2.RELEASE.
+ jar jackson-databind-2.10.2.jar
+Build-Jdk-Spec: 1.8
+Created-By: Maven Integration for Eclipse
+Implementation-URL: http://gitlab.zira/zira-commons/maven-settings.git
+ /maven-versions/maven-project/praksa/praksa-service
+Implementation-Vendor: ZIRA Ltd.
+Revision: 
+

@@ -1,0 +1,23 @@
+<div (click)="showCharacter(character.id)" class="container">
+  <div class="image-container">
+    <img [src]="character.imageUrl" alt="Can't load cover" class="character-image" width="150" height="200">
+  </div>
+
+  <div  class="character-info">
+    <div>
+      <h3 *ngIf="checkTextLength(character.name, 12); else longName">{{character.name}}</h3>
+      <ng-template #longName>
+        <h3>{{correctTextLength(character.name, 12)}}</h3>
+      </ng-template>
+    </div>
+
+    <div style="height: 70px; overflow: hidden;">
+      <p *ngIf="checkTextLength(character.outlineText, 50); else longInfo">{{character.outlineText}}</p>
+      <ng-template #longInfo>
+        <p>{{correctTextLength(character.outlineText, 50)}}</p>
+      </ng-template>
+    </div>
+    <div style="margin-top: 10px;"><p>Number of<br>appearances: {{character.numberOfAppearances}}</p></div>
+  </div>
+</div>
+  

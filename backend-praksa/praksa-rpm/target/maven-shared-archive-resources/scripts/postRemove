@@ -1,0 +1,28 @@
+echo "POST-REMOVE..."
+
+if [ $1 -eq 0  ]; then                                                       # If Uninstall
+    %{APP_ROOT}/%{APP_SCRIPT_NAME} status > /dev/null
+    status=$?
+    if [ $status -eq 0 ]; then                                               # Does application running
+        %{APP_ROOT}/%{APP_SCRIPT_NAME} stop                                  # If running - stop
+    fi
+
+    %{APP_ROOT}/%{APP_SCRIPT_NAME} removestartup                             # Remove from BootUp
+    %{APP_ROOT}/%{APP_SCRIPT_NAME} removelogrotate                           # Remove logrotate
+    rm -fv /etc/init.d/%{APP_SCRIPT_NAME}                                    # Remove /etc/init/zira-mvno-<name>
+    rm -fv /etc/init.d/%{APP_SCRIPT_NAME}-%{APP_VERSION}                     # Remove /etc/init/zira-mvno-<name>-<ver>-SNAPSHOT
+
+    if [ -f %{APP_ROOT}/%{APP_SCRIPT_NAME}.ksh ]; then
+        rm %{APP_ROOT}/%{APP_SCRIPT_NAME}.ksh
+    fi
+
+    echo "Cleanup ..."
+    rm -fr %{APP_ROOT} %{APP_LOG_ROOT} %{APP_CONF} %{APP_VAR_DATA} %{APP_RUN_ROOT} %{APP_LOCK_ROOT}
+
+    echo "Remove performed."
+
+
+else                                                                         # If Update
+    echo "Update performed."
+fi
+

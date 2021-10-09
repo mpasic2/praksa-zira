@@ -1,0 +1,1542 @@
+#!/bin/bash
+#
+# Description: Start/Stop script for the Apache Commons Daemon Project
+#------------------------------------------------------------------------------
+
+#------------------------------------------------------------------------------
+# chkconfig: 2345 85 15
+# description: ${app.name} ${app.version}
+#------------------------------------------------------------------------------
+
+#----------------------------------------------------------------------------->
+# Properties
+
+# Application
+APP_NAME="${app.name}"
+APP_LONG_NAME="${app.name} ${app.version}.${app.release.version}"
+APP_VERSION="${app.version}"
+APP_RELEASE="${app.release.version}"
+APP_LOG_FILE_SIZE="${app.log.file.size}"
+APP_LOG_FILE_COUNT="${app.log.file.count}"
+
+# Configuration
+#CONF=configuration/wrapper.conf
+
+#
+#<-----------------------------------------------------------------------------
+
+
+###############################################################################
+# Wrapper.conf parser                                                         #
+###############################################################################
+
+# ----- Variables -------------------------------
+# Base directory of script
+dir_base=$(dirname "$(readlink -f "$0")")
+
+CONF="configuration/wrapper.ini"
+W_CONF=$dir_base"/configuration/wrapper.conf"
+WO_CONF=$dir_base"/configuration/wrapper-override.conf"
+
+
+# ----- Colors ----------------------------------
+RED='\033[0;31m'        # Red
+YEL='\033[1;33m'        # Yellow
+NC='\033[0m'            # No Color
+
+# ----- Left & Right trim than copy to INI filea ---
+sed    -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' $W_CONF > $dir_base"/"$CONF
+
+
+# ----- HEADER for new variables ----------------
+echo "" >> $dir_base"/"$CONF
+echo "" >> $dir_base"/"$CONF
+echo "" >> $dir_base"/"$CONF
+echo "#<-----------------------------------------------------------------------------" >> $dir_base"/"$CONF
+echo "# Lines exist in wrapper-override.conf but doesn't exist at wrapper.conf"        >> $dir_base"/"$CONF
+echo "" >> $dir_base"/"$CONF
+
+
+# ----- If wrapper-override.conf file exist
+if [ -f $WO_CONF ]; then
+    # ----- Left & Right trim to same override file
+    sed -i -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' $WO_CONF
+
+    # ----- Remove comments and blank lines
+    CMD=$(egrep -v '^#|^$' $WO_CONF)
+
+    # ----- Main loop ---------------------------
+    IFS_save=$IFS
+    IFS=$'\n'
+    for i in $CMD                                                   # For each line in wrapper-override.conf
+    do
+        left=$( echo $i | cut -d'=' -f1)                            # Get variable name
+        right=$(echo $i | cut -d'=' -f2-)                           # Get variable value
+        grep -q "^$left=.*" $dir_base"/"$CONF                       # if variable=value does'n in wrapper-override.conf
+        if [[ $? -ne 0 ]]; then
+            echo $i >> $dir_base"/"$CONF                            # Add new variable
+        else
+             sed -i "s/^$left.*$/$left=$right/g" $dir_base"/"$CONF  # Modify variable
+        fi
+    done
+    IFS=$IFS_save
+    # ----- END loop ----------------------------
+else
+    # ----- Warning message if wrapper-override.conf doesn't exist ----
+    printf "${YEL}WARNING - $WO_CONF doesnt exist${NC}\n"
+
+
+fi
+
+# ----- FOOTER for new variables ----------------
+echo "" >> $dir_base"/"$CONF
+echo "#<-----------------------------------------------------------------------------" >> $dir_base"/"$CONF
+echo "" >> $dir_base"/"$CONF
+
+
+# ----- Get username and group ------------------
+# Run As User
+UUSER=$(sed '/^\#/d' $dir_base"/"$CONF | grep "wrapper.user=" | sed 's/=/ /' | awk '{ print $2 }')
+
+# Group of user
+GUSER=$(id -g -n $UUSER)
+
+
+# ----- Set permissoins -------------------------
+chown $UUSER:$GUSER $dir_base"/"$CONF
+chown $UUSER:$GUSER $W_CONF
+chown $UUSER:$GUSER $WO_CONF
+
+###############################################################################
+
+
+
+
+#----------------------------------------------------------------------------->
+# General Preparations
+
+# Script Paths
+
+case $0 in
+    /*)
+        SCRIPT="$0"
+        ;;
+    *)
+        PWD=`pwd`
+        SCRIPT="`echo $PWD/$0 | sed 's/\.\///g'`"
+        ;;
+esac
+
+# Resolve Symlinks
+while [ -h "$SCRIPT" ] ; do
+    scriptls="`ls -ld $SCRIPT`"
+    scriptlink="`expr "$scriptls" : '.*-> \(.*\)$'`"
+    if [ "`echo $scriptlink | cut -c1,1`" = "/"  ]; then
+        SCRIPT=$scriptlink
+    else
+        SCRIPT="`dirname $SCRIPT`""/$scriptlink"
+    fi
+done
+
+RUN_DIR=`dirname $SCRIPT`
+
+SCRIPT_NAME=`echo $SCRIPT | sed 's,'"$RUN_DIR/"','""',g'`
+
+# Change Directory
+cd $RUN_DIR
+
+# Operating System
+
+OS=`uname -s | tr [A-Z] [a-z] | tr -d ' '`
+
+case "$OS" in
+    'sunos')
+        OS="solaris"
+        ;;
+    'linux')
+        # Do Nothing!
+        ;;
+    *)
+        echo "No supported Operating System found! Must be Linux or Solaris!"
+        exit 1;
+        ;;
+esac
+
+# Architecture
+case "$OS" in
+    'solaris')
+        ARCH=`uname -p 2>/dev/null | tr [A-Z] [a-z] | tr -d ' '`
+        ARCH_BITS=`isainfo -b`
+        ;;
+    'linux')
+        ARCH=`uname -m 2>/dev/null | tr [A-Z] [a-z] | tr -d ' '`
+        ARCH_BITS=`uname -m 2>/dev/null | cut -c5,6`
+        ;;
+esac
+
+case "$ARCH_BITS" in
+    '32')
+        if [ $ARCH = 'sparc' ]; then
+            ARCH_SUFFIX="sparc-32"
+        else
+            ARCH_SUFFIX="x86-32"
+        fi
+        ;;
+    '64')
+        if [ $ARCH = 'sparc' ]; then
+            ARCH_SUFFIX="sparc-64"
+        else
+            ARCH_SUFFIX="x86-64"
+        fi
+        ;;
+    '6l')
+        # We assume it's an ARM
+        ARCH_SUFFIX=$ARCH
+        ;;
+    *)
+        echo "Architecture BITS (32-/64-bit) not valid! Bits = $ARCH_BITS"
+        exit 1
+        ;;
+esac
+
+# JSVC Binary
+
+JSVC_CMD="$SCRIPT-$OS-$ARCH_SUFFIX"
+
+if [ ! -x $JSVC_CMD ]; then
+    echo "Binary [$JSVC_CMD] not executeable! Try chmod +x"
+    exit 1
+fi
+
+# CONF File
+
+if [ "`echo $CONF | cut -c1,1`" != "/" ]; then
+    CONF="$RUN_DIR/$CONF"
+fi
+
+#
+#<-----------------------------------------------------------------------------
+
+#----------------------------------------------------------------------------->
+# Read Wrapper Configuration
+
+# Function to read the properties file
+# $1 key
+getprop ()
+{
+    propvalue=`sed '/^\#/d' $CONF | grep "$1=" | sed 's/=/ /' | awk '{ print $2 }'`
+}
+
+# General Properties
+getprop "wrapper.pid.dir"
+PID_DIR=$propvalue
+
+getprop "wrapper.lock.dir"
+LOCK_DIR=$propvalue
+
+getprop "wrapper.user"
+RUN_AS_USER=$propvalue
+
+getprop "wrapper.javahome"
+JAVA_HOME=$propvalue
+
+getprop "wrapper.waittime"
+WAIT_TIME=$propvalue
+
+# Main Class
+
+getprop "wrapper.java.mainclass"
+MAIN_CLASS=$propvalue
+
+# Build Classpath from properties file
+
+i=1
+classpathprop="initialvalue"
+
+while [ "X$classpathprop" != "X" ]
+do
+    getprop "wrapper.java.classpath.$i"
+    classpathprop=$propvalue
+
+    if [ "X$classpathprop" != "X" ]; then
+
+        if [ "`echo $classpathprop | cut -c1,1`" != "/" ]; then
+            if [ "`echo $classpathprop | cut -c1,1`" = "." ]; then
+                classpathprop=`echo $classpathprop | sed 's,./,,'`
+                classpathprop="$RUN_DIR/$classpathprop"
+            else
+                classpathprop="$RUN_DIR/$classpathprop"
+            fi
+        fi
+
+        if [ "X$CLASSPATH" = "X" ]; then
+            CLASSPATH=$classpathprop
+        else
+            CLASSPATH=$CLASSPATH:$classpathprop
+        fi
+    fi
+
+    i=`expr $i + 1`
+done
+
+# Build Java System Properties
+
+i=1
+javasystemprop="initialvalue"
+
+while [ "X$javasystemprop" != "X" ]
+do
+    getprop "wrapper.java.properties.$i"
+    javasystemprop=$propvalue
+
+    if [ "X$javasystemprop" != "X" ]; then
+        if [ "X$SYSTEM_PROPERTIES" = "X" ]; then
+            SYSTEM_PROPERTIES=$javasystemprop
+        else
+            SYSTEM_PROPERTIES="$SYSTEM_PROPERTIES $javasystemprop"
+        fi
+    fi
+
+    i=`expr $i + 1`
+done
+
+# Build Application Arguments
+
+i=1
+applicationargs="initialvalue"
+
+while [ "X$applicationargs" != "X" ]
+do
+    getprop "wrapper.app.arguments.$i"
+    applicationargs=$propvalue
+
+    if [ "X$applicationargs" != "X" ]; then
+        if [ "X$APPLICATION_ARGUMENTS" = "X" ]; then
+            APPLICATION_ARGUMENTS=$applicationargs
+        else
+            APPLICATION_ARGUMENTS="$APPLICATION_ARGUMENTS $applicationargs"
+        fi
+    fi
+
+    i=`expr $i + 1`
+done
+
+# Build JVM Options
+
+# Java Heap Spache Init
+getprop "wrapper.java.heap.init"
+JVM_HEAP_INIT=$propvalue
+
+if [ "X$JVM_HEAP_INIT" != "X" ]; then
+    JVM_HEAP_INIT="-Xms${JVM_HEAP_INIT}m"
+    JVM_OPTIONS="$JVM_HEAP_INIT"
+fi
+
+# Java Heap Space Max
+getprop "wrapper.java.heap.max"
+JVM_HEAP_MAX=$propvalue
+
+if [ "X$JVM_HEAP_MAX" != "X" ]; then
+    JVM_HEAP_MAX="-Xmx${JVM_HEAP_MAX}m"
+
+    if [ "X$JVM_OPTIONS" = "X" ]; then
+        JVM_OPTIONS="$JVM_HEAP_MAX"
+    else
+        JVM_OPTIONS="$JVM_OPTIONS $JVM_HEAP_MAX"
+    fi
+fi
+
+# Java Perm Size
+getprop "wrapper.java.perm.max"
+JVM_PERM_MAX=$propvalue
+
+if [ "X$JVM_PERM_MAX" != "X" ]; then
+    JVM_PERM_MAX="-XX:MaxPermSize=${JVM_PERM_MAX}m"
+
+    if [ "X$JVM_OPTIONS" = "X" ]; then
+        JVM_OPTIONS="$JVM_PERM_MAX"
+    else
+        JVM_OPTIONS="$JVM_OPTIONS $JVM_PERM_MAX"
+    fi
+fi
+
+# Loop through java options
+i=1
+jvmoption="initialvalue"
+
+while [ "X$jvmoption" != "X" ]
+do
+    getprop "wrapper.java.options.$i"
+    jvmoption=$propvalue
+
+    if [ "X$jvmoption" != "X" ]; then
+        if [ "X$JVM_OPTIONS" = "X" ]; then
+            JVM_OPTIONS=$jvmoption
+        else
+            JVM_OPTIONS="$JVM_OPTIONS $jvmoption"
+        fi
+    fi
+
+    i=`expr $i + 1`
+done
+
+# Logging Properties
+
+getprop "wrapper.logging.error"
+LOGGING_ERR_PATH=$propvalue
+LOGGING_ERR_PATH=`echo $LOGGING_ERR_PATH | sed 's,'"@WRAPPER_APP_RELEASE@"','"${APP_RELEASE}"',' | sed 's,'"@WRAPPER_APP_VERSION@"','"$APP_VERSION"','`
+
+if [ "X$LOGGING_ERR_PATH" != "X" ]; then
+    if [ "`echo $LOGGING_ERR_PATH | cut -c1,1`" != "/" ]; then
+        if [ "`echo $LOGGING_ERR_PATH | cut -c1,1`" = "." ]; then
+            LOGGING_ERR_PATH=`echo $LOGGING_ERR_PATH | sed 's,./,,'`
+            LOGGING_ERR_PATH="$RUN_DIR/$LOGGING_ERR_PATH"
+        else
+            LOGGING_ERR_PATH="$RUN_DIR/$LOGGING_ERR_PATH"
+        fi
+    fi
+fi
+
+getprop "wrapper.logging.out"
+LOGGING_OUT_PATH=$propvalue
+LOGGING_OUT_PATH=`echo $LOGGING_OUT_PATH | sed 's,'"@WRAPPER_APP_RELEASE@"','"${APP_RELEASE}"',' | sed 's,'"@WRAPPER_APP_VERSION@"','"$APP_VERSION"','`
+
+if [ "X$LOGGING_OUT_PATH" != "X" ]; then
+    if [ "`echo $LOGGING_OUT_PATH | cut -c1,1`" != "/" ]; then
+        if [ "`echo $LOGGING_OUT_PATH | cut -c1,1`" = "." ]; then
+            LOGGING_OUT_PATH=`echo $LOGGING_OUT_PATH | sed 's,./,,'`
+            LOGGING_OUT_PATH="$RUN_DIR/$LOGGING_OUT_PATH"
+        else
+            LOGGING_OUT_PATH="$RUN_DIR/$LOGGING_OUT_PATH"
+        fi
+    fi
+fi
+
+getprop "wrapper.logging.out.verbose"
+LOGGING_OUT_VERBOSE=$propvalue
+
+if [ "$LOGGING_OUT_VERBOSE" = "1" ]; then
+    LOGGING_OUT_VERBOSE="-verbose";
+fi
+
+#
+#<-----------------------------------------------------------------------------
+
+#----------------------------------------------------------------------------->
+# Post Wrapper Configuration Properties
+
+# WAIT_TIME
+
+if [ -z "$WAIT_TIME" ]; then
+    WAIT_TIME=120
+fi
+
+# Check if JAVA_HOME is set and if not try to automatically detect it
+
+if [ -z "$JAVA_HOME" ]; then
+
+    case "$OS" in
+        'solaris')
+                if [ -d /usr/java ]; then
+                    JAVA_HOME=/usr/java
+                fi
+            ;;
+        'linux')
+                if [ -f /etc/redhat-release ]; then
+                    if [ -d /usr/java/latest ]; then
+                        JAVA_HOME=/usr/java/latest
+                    fi
+                fi
+
+                if [ -f /etc/lsb-release ]; then
+                    if [ -d /usr/lib/jvm/java-6-sun ]; then
+                        JAVA_HOME=/usr/lib/jvm/java-6-sun
+                    fi
+                fi
+            ;;
+    esac
+
+    if [ -z "$JAVA_HOME" ]; then
+        echo "Wasn't able to automatically detect a JAVA_HOME, please override the JAVA_HOME variable in this script or set it in the environment variables"
+        exit 1
+    fi
+fi
+
+# PID File
+
+if [ "`echo $PID_DIR | cut -c1,1`" != "/" ]; then
+    if [ "$PID_DIR" = "." ]; then
+        PID_FILE="$RUN_DIR/$SCRIPT_NAME.pid"
+    else
+        PID_FILE="$RUN_DIR/$PID_DIR/$SCRIPT_NAME.pid"
+    fi
+else
+    PID_FILE="$PID_DIR/$SCRIPT_NAME.pid"
+fi
+
+# LOCK_FILE
+
+if [ "`echo $LOCK_DIR | cut -c1,1`" != "/" ]; then
+    if [ "$LOCK_FILE" = "." ]; then
+        LOCK_FILE="$RUN_DIR/$SCRIPT_NAME.lock"
+    else
+        LOCK_FILE="$RUN_DIR/$LOCK_DIR/$SCRIPT_NAME.lock"
+    fi
+else
+    LOCK_FILE="$LOCK_DIR/$SCRIPT_NAME.lock"
+fi
+
+# PID & LOCK Directory
+if [ ! -d $PID_DIR ]; then
+
+    echo "Creating PID Directory $PID_DIR since it doesn't exist. . ."
+
+    if [ "$OS" = "linux" ]; then
+        CURRENT_USER=`id -u -n`
+    else
+        CURRENT_USER=`id | sed 's/(/ /g' | sed 's/)/ /g' | awk '{print $2}'`
+    fi
+
+    # Getting the UID of the user and check if it is root (uid=0)
+    if [ "`id $CURRENT_USER | sed 's/(/ /g' | sed 's/)/ /g' | sed 's/=/ /g' | awk '{print $2}'`" != "0" ]; then
+        echo "Must be root (uid=0) to perform this action"
+        exit 1
+    fi
+
+    mkdir -p $PID_DIR
+
+    if [ "X$RUN_AS_USER" != "X" ]; then
+        if [ "$OS" = "solaris" ]; then
+            RUN_AS_GROUP=`groups $RUN_AS_USER | awk '{print $1}' | tail -1`
+        else
+            RUN_AS_GROUP=`groups $RUN_AS_USER | awk '{print $3}' | tail -1`
+        fi
+
+        chown -Rf $RUN_AS_USER:$RUN_AS_GROUP $PID_DIR
+    fi
+fi
+
+if [ ! -d $LOCK_DIR ]; then
+
+    echo "Creating LOCK Directory $LOCK_DIR since it doesn't exist. . ."
+
+    if [ "$OS" = "linux" ]; then
+        CURRENT_USER=`id -u -n`
+    else
+        CURRENT_USER=`id | sed 's/(/ /g' | sed 's/)/ /g' | awk '{print $2}'`
+    fi
+
+    # Getting the UID of the user and check if it is root (uid=0)
+    if [ "`id $CURRENT_USER | sed 's/(/ /g' | sed 's/)/ /g' | sed 's/=/ /g' | awk '{print $2}'`" != "0" ]; then
+        echo "Must be root (uid=0) to perform this action"
+        exit 1
+    fi
+
+    mkdir -p $LOCK_DIR
+
+    if [ "X$RUN_AS_USER" != "X" ]; then
+        if [ "$OS" = "solaris" ]; then
+            RUN_AS_GROUP=`groups $RUN_AS_USER | awk '{print $1}' | tail -1`
+        else
+            RUN_AS_GROUP=`groups $RUN_AS_USER | awk '{print $3}' | tail -1`
+        fi
+
+        chown -Rf $RUN_AS_USER:$RUN_AS_GROUP $LOCK_DIR
+    fi
+fi
+
+#
+#<-----------------------------------------------------------------------------
+
+#----------------------------------------------------------------------------->
+# Verify & Set JSVC Properties
+
+if [ "X$JAVA_HOME" != "X" ]; then
+    JSVC_JAVA_HOME="-home $JAVA_HOME"
+fi
+
+if [ "X$PID_FILE" != "X" ]; then
+    JSVC_PID_FILE="-pidfile $PID_FILE"
+fi
+
+if [ "X$WAIT_TIME" != "X" ]; then
+    JSVC_WAIT_TIME="-wait $WAIT_TIME"
+fi
+
+if [ "X$SCRIPT_NAME" != "X" ]; then
+    JSVC_PROCNAME="-procname $SCRIPT_NAME"
+fi
+
+if [ "X$CLASSPATH" != "X" ]; then
+    JSVC_CLASSPATH="-cp $CLASSPATH"
+fi
+
+if [ "X$JVM_OPTIONS" != "X" ]; then
+    JSVC_JVM_OPTIONS="$JVM_OPTIONS"
+fi
+
+if [ "X$SYSTEM_PROPERTIES" != "X" ]; then
+    JSVC_SYSTEM_PROPERTIES="$SYSTEM_PROPERTIES"
+fi
+
+if [ "X$LOGGING_OUT_PATH" != "X" ]; then
+    JSVC_LOGGING_OUT_PATH="-outfile $LOGGING_OUT_PATH"
+fi
+
+if [ "X$LOGGING_ERR_PATH" != "X" ]; then
+    JSVC_LOGGING_ERR_PATH="-errfile $LOGGING_ERR_PATH"
+fi
+
+if [ "$LOGGING_OUT_VERBOSE" = "1" ]; then
+    JSVC_LOGGING_OUT_VERBOSE="-verbose"
+fi
+
+#
+#<-----------------------------------------------------------------------------
+
+#----------------------------------------------------------------------------->
+# Script Functions
+#
+
+# Exit if the current user is not root
+rootcheck()
+{
+    # Getting the UID of the user and check if it is root (uid=0)
+    if [ "`id $CURRENT_USER | sed 's/(/ /g' | sed 's/)/ /g' | sed 's/=/ /g' | awk '{print $2}'`" != "0" ]; then
+        echo "Must be root (uid=0) to use this function"
+        exit 1
+    fi
+}
+
+# Verify if the RUN_AS_USER is the current user
+#   YES do nothing
+#   NO  change user and start this script again
+# Lock if requested
+#
+# $1 Lock or no Lock
+# $2 Script Action (start, stop, etc.)
+
+usercheck()
+{
+    # Find current user
+    if [ "X$RUN_AS_USER" != "X" ]; then
+        if [ "$OS" = "linux" ]; then
+            CURRENT_USER=`id -u -n`
+        else
+            CURRENT_USER=`id | sed 's/(/ /g' | sed 's/)/ /g' | awk '{print $2}'`
+        fi
+    fi
+
+    # Check if the Current User of the script is the configure RUN_AS_USER
+    if [ "$RUN_AS_USER" = "$CURRENT_USER" ]; then
+        RUN_AS_USER=""
+    fi
+
+    if [ "X$RUN_AS_USER" != "X" ]; then
+
+        # Generate Lock File if requested
+        if [ "X$LOCK_FILE" != "X" ]; then
+            if [ "$1" = "1" ]; then
+                if [ "$OS" = "solaris" ]; then
+                    RUN_AS_GROUP=`groups $RUN_AS_USER | awk '{print $1}' | tail -1`
+                else
+                    RUN_AS_GROUP=`groups $RUN_AS_USER | awk '{print $3}' | tail -1`
+                fi
+
+                if [ "X$RUN_AS_GROUP" = "X" ]
+                then
+                    RUN_AS_GROUP=$RUN_AS_USER
+                fi
+
+                touch $LOCK_FILE
+                chown $RUN_AS_USER:$RUN_AS_GROUP $LOCK_FILE
+            fi
+        fi
+
+        # Execute the script again with the corret user
+        if [ -f "/sbin/runuser" ]; then
+            /sbin/runuser - $RUN_AS_USER -c "\"$SCRIPT\" $2"
+        else
+            su - $RUN_AS_USER -c "\"$SCRIPT\" $2"
+        fi
+
+        result=$?
+
+        # Script finished - Delete lock file
+        if [ -f "$LOCK_FILE" ]; then
+            rm -f $LOCK_FILE
+        fi
+
+        # End the script! Otherwise we have loop. . .
+        exit $result
+    fi
+}
+
+# Verify the that the provided log file
+# That the directory exists, otherwise create
+# That the log files are touched
+#
+# $1 Log File
+
+logfilecheck()
+{
+    logfile=$1
+
+    if [ -n "$logfile" ]; then
+
+        logdirectory=`dirname $logfile`
+
+        if [ ! -d "$logdirectory" ]; then
+           mkdir -p $logdirectory
+           if [ $? != 0 ]; then
+               echo "Couldn't create log directory [$logdirectory] !"
+               exit 1
+           fi
+        fi
+
+        chown -Rf $RUN_AS_USER:$RUN_AS_GROUP $logdirectory
+
+        # Touching Log File
+        touch $logfile
+
+        if [ $? != 0 ]; then
+            echo "Couldn't touch log file [$logfile] !"
+            exit 1
+        fi
+    fi
+
+    chown -Rf $RUN_AS_USER:$RUN_AS_GROUP $logdirectory
+}
+
+# Check LOGGING_OUT_PATH & LOGGING_ERR_PATH
+
+logscheck()
+{
+    logfilecheck $LOGGING_OUT_PATH
+    logfilecheck $LOGGING_ERR_PATH
+}
+
+getpid()
+{
+    pid=""
+    if [ -f "$PID_FILE" ]; then
+        if [ -r "$PID_FILE" ]; then
+            pid=`cat "$PID_FILE"`
+
+            if [ "X$pid" != "X" ]; then
+                pidtest=`ps -p $pid -o args | grep "$SCRIPT_NAME" | tail -1`
+
+                if [ "X$pidtest" = "X" ]; then
+                    # This is a stale pid file.
+                    rm -f "$PID_FILE"
+                    echo "Removed stale pid file: $PID_FILE"
+                    pid=""
+                fi
+            fi
+        else
+            echo "Cannot read $PID_FILE."
+            exit 1
+        fi
+    fi
+}
+
+getparentpid()
+{
+    parentpid=""
+
+    getpid
+
+    if [ "X$pid" != "X" ]; then
+        parentpid=`ps -p $pid -o ppid | tail -1 | awk '{print $1}'`
+    fi
+}
+
+# This methods invokes sleep as long as the app isn't stopped for specific time
+#
+# $1 Max retries
+# $2 Sleep duration in seconds
+
+sleeptillstopped()
+{
+    i=1
+    while [ $i -le $1 ]
+    do
+        getpid
+        if [ "X$pid" != "X" ]; then
+            echo "Waiting for Server to stop... `expr $1 - $i` tries left"
+            i=`expr $i + 1`
+            sleep $2
+        else
+            return 0
+        fi
+    done
+
+    return 1
+}
+
+status()
+{
+    getpid
+    if [ "X$pid" = "X" ]; then
+        echo "$APP_LONG_NAME is not running."
+        exit 1
+    else
+        echo "$APP_LONG_NAME is running PID: $pid "
+        exit 0
+    fi
+}
+# Function to add logrotate for Linux OS
+#
+# $1 name
+# $2 logfile
+# $3 logfilesize
+# $4 logfilecount
+
+addlogrotatelinux()
+{
+    name=$1
+    logfile=$2
+    logfilesize=$3
+    logfilecount=$4
+
+    echo "Adding $name to /etc/logrotate.d/"
+
+    echo "$logfile {" > /etc/logrotate.d/$name
+    echo "    rotate $logfilecount" >> /etc/logrotate.d/$name
+    echo "    size ${logfilesize}M" >> /etc/logrotate.d/$name
+    echo "    compress" >> /etc/logrotate.d/$name
+    echo "    nocreate" >> /etc/logrotate.d/$name
+    echo "    missingok" >> /etc/logrotate.d/$name
+    echo "    copytruncate" >> /etc/logrotate.d/$name
+    echo "}" >> /etc/logrotate.d/$name
+
+    crontab -l | sed '/'"\/etc\/logrotate.d\/$name"'/d' > /tmp/${SCRIPT_NAME}-logrotate-cron-tmp
+
+    echo "Adding job to /tmp/${SCRIPT_NAME}-logrotate-cron-tmp"
+    echo "0,5,10,15,20,25,30,35,40,45,50,55 * * * * /usr/sbin/logrotate -s /var/lib/logrotate.status.$name /etc/logrotate.d/$name" >> /tmp/${SCRIPT_NAME}-logrotate-cron-tmp
+
+    echo "Importing new crontab"
+
+    crontab < /tmp/${SCRIPT_NAME}-logrotate-cron-tmp
+
+    rm /tmp/${SCRIPT_NAME}-logrotate-cron-tmp
+}
+
+# Function to add logrotate for Solaris OS
+#
+# $1 name
+# $2 logfile
+# $3 logfilesize
+# $4 logfilecount
+
+addlogrotatesolaris()
+{
+    name=$1
+    logfile=$2
+    logfilesize=$3
+    logfilecount=$4
+
+    escapedlogfile=`echo $logfile | sed 's,/,\\\/,g'`
+
+    echo "Check if the job is already in /var/spool/cron/crontabs/root"
+
+    crontab -l | sed '/'"\/usr\/sbin\/logadm $escapedlogfile"'/d' > /tmp/${SCRIPT_NAME}-logrotate-cron-tmp
+
+    echo "Adding job to /tmp/${SCRIPT_NAME}-logrotate-cron-tmp"
+
+    echo "0,5,10,15,20,25,30,35,40,45,50,55 * * * * /usr/sbin/logadm $logfile -C $logfilecount -s ${logfilesize}m -o $RUN_AS_USER -c" >> /tmp/${SCRIPT_NAME}-logrotate-cron-tmp
+
+    echo "Importing new crontab"
+
+    crontab < /tmp/${SCRIPT_NAME}-logrotate-cron-tmp
+
+    rm /tmp/${SCRIPT_NAME}-logrotate-cron-tmp
+}
+
+# Function to add logrotation for LOGGING_OUT_PATH & LOGGING_ERR_PATH logfiles
+
+addlogrotate()
+{
+    rootcheck
+
+    # Check if wrapper log is used
+    if [ -z "$LOGGING_OUT_PATH" -a -z "$LOGGING_ERR_PATH" ]; then
+        echo "Add logrotate not possible, since it isn't configured in the wrapper.conf"
+        return;
+    fi
+
+    # Ask for File Size
+    echo -n "Please sate the max log file size in MegaByte: [100] "
+    read answermaxlogfilesize
+
+    if [ -z "$answermaxlogfilesize" ]; then
+        answermaxlogfilesize=${APP_LOG_FILE_SIZE}
+    fi
+
+    # Ask for Max File Count
+    echo -n "Please sate the max backup index (logfile count): [10] "
+    read answermaxlogfilecount
+
+    if [ -z "$answermaxlogfilecount" ]; then
+        answermaxlogfilecount=${APP_LOG_FILE_COUNT}
+    fi
+
+    case $OS in
+        'linux')
+                if [ -n "$LOGGING_OUT_PATH" ]; then
+                    addlogrotatelinux ${SCRIPT_NAME}-out $LOGGING_OUT_PATH $answermaxlogfilesize $answermaxlogfilecount
+                fi
+
+                if [ -n "$LOGGING_ERR_PATH" ]; then
+                    addlogrotatelinux ${SCRIPT_NAME}-err $LOGGING_ERR_PATH $answermaxlogfilesize $answermaxlogfilecount
+                fi
+                ;;
+        'solaris')
+                if [ -n "$LOGGING_OUT_PATH" ]; then
+                    addlogrotatesolaris ${SCRIPT_NAME}-out $LOGGING_OUT_PATH $answermaxlogfilesize $answermaxlogfilecount
+                fi
+
+                if [ -n "$LOGGING_ERR_PATH" ]; then
+                    addlogrotatesolaris ${SCRIPT_NAME}-err $LOGGING_ERR_PATH $answermaxlogfilesize $answermaxlogfilecount
+                fi
+                ;;
+    esac
+}
+
+# Function to remove logrotate for Linux OS
+#
+# $1 name
+
+removelogrotatelinux()
+{
+    name=$1
+
+    realpath="/etc/logrotate.d/$name"
+
+    if [ -f $realpath ]; then
+
+        echo -n "Removing $realpath ... "
+        /bin/rm $realpath
+
+        if [ $? = 0 ]; then
+            echo "[OK]"
+        else
+            echo "[FAILED]"
+        fi
+    fi
+
+    echo "Removing from crontab"
+
+    crontab -l | sed '/'"\/etc\/logrotate.d\/$name"'/d' > /tmp/${SCRIPT_NAME}-logrotate-cron-tmp
+
+    echo "Importing new crontab"
+
+    crontab < /tmp/${SCRIPT_NAME}-logrotate-cron-tmp
+
+    rm /tmp/${SCRIPT_NAME}-logrotate-cron-tmp
+}
+
+# Function to remove logrotate for Solaris OS
+#
+# $1 logfile
+
+removelogrotatesolaris()
+{
+    echo "Removing from crontab"
+
+    escapedlogfile=`echo $logfile | sed 's,/,\\\/,g'`
+
+    crontab -l | sed '/'"\/usr\/sbin\/logadm $escapedlogfile"'/d' > /tmp/${SCRIPT_NAME}-logrotate-cron-tmp
+
+    echo "Importing new crontab"
+
+    crontab < /tmp/${SCRIPT_NAME}-logrotate-cron-tmp
+
+    rm /tmp/${SCRIPT_NAME}-logrotate-cron-tmp
+}
+
+# Function to remove logrotation for LOGGING_OUT_PATH & LOGGING_ERR_PATH logfiles
+
+removelogrotate()
+{
+    rootcheck
+
+    # Check if wrapper log is used
+    if [ -z "$LOGGING_OUT_PATH" -a -z "$LOGGING_ERR_PATH" ]; then
+        echo "Remove logrotate not possible, since it isn't configured in the wrapper.conf"
+        return;
+    fi
+
+    case $OS in
+        'linux')
+                if [ -n "$LOGGING_OUT_PATH" ]; then
+                    removelogrotatelinux ${SCRIPT_NAME}-out $LOGGING_OUT_PATH
+                fi
+
+                if [ -n "$LOGGING_ERR_PATH" ]; then
+                    removelogrotatelinux ${SCRIPT_NAME}-err $LOGGING_ERR_PATH
+                fi
+                ;;
+        'solaris')
+                if [ -n "$LOGGING_OUT_PATH" ]; then
+                    removelogrotatesolaris $LOGGING_OUT_PATH
+                fi
+
+                if [ -n "$LOGGING_ERR_PATH" ]; then
+                    removelogrotatesolaris $LOGGING_ERR_PATH
+                fi
+                ;;
+    esac
+}
+
+addinitd()
+{
+    echo -n "Please state the name of the service: [${SCRIPT_NAME}] "
+    read answer
+
+    if [ -z "$answer" ]; then
+        service_name=${SCRIPT_NAME}
+    else
+        service_name=$answer
+    fi
+
+    #if [ -f /etc/init.d/${service_name} ]; then
+    #    echo "The ${service_name} daemon is already added to /etc/init.d"
+    #    exit 1
+    #fi
+
+    if [ ! -e "/etc/init.d/${service_name}" ]; then
+        ln -s ${SCRIPT} /etc/init.d/${service_name}
+    fi
+}
+
+removeinitd()
+{
+    echo -n "Please state the name of the service: [${SCRIPT_NAME}] "
+    read answer
+
+    if [ -z "$answer" ]; then
+        service_name=${SCRIPT_NAME}
+    else
+        service_name=$answer
+    fi
+
+    if [ ! -f /etc/init.d/${service_name} ]; then
+        echo "The $APP_LONG_NAME daemon is already removed from /etc/init.d"
+        exit 1
+    fi
+
+    rm /etc/init.d/${service_name}
+}
+
+addstartup()
+{
+    rootcheck
+
+    addinitd
+
+    case $OS in
+        'linux')
+                if [ -f /etc/redhat-release ]; then
+
+                    chkconfig --list performance-service | grep -q "$service_name.*3:on"
+                    if [[ $? -ne 0 ]]; then
+                       echo -n "Adding $service_name to startup for RHEL ... "
+
+                       chkconfig --add $service_name
+                       chkconfig $service_name on
+                    fi
+
+                    echo "[OK]"
+                    echo "Invoking chkconfig list, please verify if it is installed correctly. . ."
+                    echo ""
+                    echo "-----------------------------------------------------------------------"
+                    chkconfig --list $service_name
+                    echo "-----------------------------------------------------------------------"
+                    echo ""
+
+                elif [ -f /etc/lsb-release ]; then
+                    echo -n "Adding $service_name to startup for Ubuntu"
+
+                    update-rc.d $service_name defaults
+
+                    echo "[OK]"
+                else
+                    echo -n "Adding $service_name for Generic Linux OS startup ... "
+
+                    echo "ln -s /etc/init.d/$service_name /etc/rc3.d/S20$service_name"
+                    ln -s /etc/init.dS20$service_name
+
+                    echo "ln -s /etc/init.d/$service_name /etc/rc3.d/K20$service_name"
+                    ln -s /etc/init.d/$service_name /etc/rc3.d/K20$service_name
+
+                    echo "ln -s /etc/init.d/$service_name /etc/rc5.d/S20$service_name"
+                    ln -s /etc/init.d/$service_name /etc/rc5.d/S20$service_name
+
+                    echo "ln -s /etc/init.d/$service_name /etc/rc5.d/K20$service_name"
+                    ln -s /etc/init.d/$service_name /etc/rc5.d/K20$service_name
+
+                    echo "[OK]"
+                fi
+
+                ;;
+
+        'solaris')
+
+                if [ -f  /var/svc/manifest/site/$service_name ]; then
+                    echo "The $APP_LONG_NAME daemon is already installed."
+                    exit 1
+                fi
+
+                if [ ! -d /var/svc/manifest/site ]; then
+                    echo "The svc manifest directory does not exist! directory = /var/svc/manifest/site"
+                    exit 1
+                else
+                    echo "Adding $service_name to Solaris SMF"
+
+                    echo "<?xml version=\"1.0\"?>" > /var/svc/manifest/site/${service_name}.xml
+                    echo "<!DOCTYPE service_bundle SYSTEM \"/usr/share/lib/xml/dtd/service_bundle.dtd.1\">" >> /var/svc/manifest/site/${service_name}.xml
+                    echo "<!--" >> /var/svc/manifest/site/${service_name}.xml
+                    echo "       I-New Communicative Solutions GmbH, 2011" >> /var/svc/manifest/site/${service_name}.xml
+                    echo "       http://www.inew-cs.com" >> /var/svc/manifest/site/${service_name}.xml
+                    echo "       " >> /var/svc/manifest/site/${service_name}.xml
+                    echo "       Id: $service_name.xml, $APP_LONG_NAME" >> /var/svc/manifest/site/${service_name}.xml
+                    echo "-->" >> /var/svc/manifest/site/${service_name}.xml
+                    echo "<service_bundle type='manifest' name='$service_name'>" >> /var/svc/manifest/site/${service_name}.xml
+                    echo "  <service name='site/$service_name' type='service' version='1'>" >> /var/svc/manifest/site/${service_name}.xml
+                    echo "" >> /var/svc/manifest/site/${service_name}.xml
+                    echo "      <create_default_instance enabled='false'/>" >> /var/svc/manifest/site/${service_name}.xml
+                    echo "      " >> /var/svc/manifest/site/${service_name}.xml
+                    echo "      <single_instance/>" >> /var/svc/manifest/site/${service_name}.xml
+                    echo "      " >> /var/svc/manifest/site/${service_name}.xml
+                    echo "      <dependency name='filesystem' grouping='require_all' restart_on='none' type='service'>" >> /var/svc/manifest/site/${service_name}.xml
+                    echo "            <service_fmri value='svc:/system/filesystem/local'/>" >> /var/svc/manifest/site/${service_name}.xml
+                    echo "        </dependency>" >> /var/svc/manifest/site/${service_name}.xml
+                    echo "" >> /var/svc/manifest/site/${service_name}.xml
+                    echo "      <dependency name='network' grouping='require_any' restart_on='error' type='service'>" >> /var/svc/manifest/site/${service_name}.xml
+                    echo "        <service_fmri value='svc:/milestone/network'/>" >> /var/svc/manifest/site/${service_name}.xml
+                    echo "      </dependency>" >> /var/svc/manifest/site/${service_name}.xml
+                    echo "      " >> /var/svc/manifest/site/${service_name}.xml
+                    echo "      <exec_method name='start' type='method' exec='$SCRIPT %m' timeout_seconds='$WAIT_TIME'>" >> /var/svc/manifest/site/${service_name}.xml
+                    echo "        <method_context working_directory='$RUN_DIR'>" >> /var/svc/manifest/site/${service_name}.xml
+                    echo "        </method_context>" >> /var/svc/manifest/site/${service_name}.xml
+                    echo "      </exec_method>" >> /var/svc/manifest/site/${service_name}.xml
+                    echo "      " >> /var/svc/manifest/site/${service_name}.xml
+                    echo "      <exec_method name='stop' type='method' exec='$SCRIPT %m' timeout_seconds='$WAIT_TIME'>" >> /var/svc/manifest/site/${service_name}.xml
+                    echo "        <method_context working_directory='$RUN_DIR'>" >> /var/svc/manifest/site/${service_name}.xml
+                    echo "        </method_context>" >> /var/svc/manifest/site/${service_name}.xml
+                    echo "      </exec_method>" >> /var/svc/manifest/site/${service_name}.xml
+                    echo "      " >> /var/svc/manifest/site/${service_name}.xml
+                    echo "      <exec_method name='restart' type='method' exec='$SCRIPT %m' timeout_seconds='`expr $WAIT_TIME '*' 2`'>" >> /var/svc/manifest/site/${service_name}.xml
+                    echo "        <method_context working_directory='$RUN_DIR'>" >> /var/svc/manifest/site/${service_name}.xml
+                    echo "        </method_context>" >> /var/svc/manifest/site/${service_name}.xml
+                    echo "      </exec_method>" >> /var/svc/manifest/site/${service_name}.xml
+                    echo "      " >> /var/svc/manifest/site/${service_name}.xml
+                    echo "      <template>" >> /var/svc/manifest/site/${service_name}.xml
+                    echo "        <common_name>" >> /var/svc/manifest/site/${service_name}.xml
+                    echo "          <loctext xml:lang='C'>$APP_LONG_NAME</loctext>" >> /var/svc/manifest/site/${service_name}.xml
+                    echo "        </common_name>" >> /var/svc/manifest/site/${service_name}.xml
+                    echo "      </template>" >> /var/svc/manifest/site/${service_name}.xml
+                    echo "      " >> /var/svc/manifest/site/${service_name}.xml
+                    echo "  </service>" >> /var/svc/manifest/site/${service_name}.xml
+                    echo "</service_bundle>" >> /var/svc/manifest/site/${service_name}.xml
+                    echo "" >> /var/svc/manifest/site/${service_name}.xml
+
+                    echo "Importing Manifest File ... "
+                    svccfg import /var/svc/manifest/site/${service_name}.xml
+
+                    echo "Please verify the installation ... Executing: svcs $service_name"
+                    svcs $service_name
+
+                    echo "When you are ready to enable it, execute \"svcadm enable $service_name\""
+                fi
+
+                ;;
+    esac
+
+    # Ask if logrotate should be added
+    echo -n "Would you like to add logrotate for out/err files of wrapper? [Y/n]: "
+    read answer
+
+    if [ "X$answer" = "X" -o "$answer" = "y" -o "$answer" = "Y" ]; then
+        addlogrotate
+    fi
+
+    exit 0
+}
+
+removestartup()
+{
+    rootcheck
+
+    getpid
+
+    if [ "X$pid" != "X" ]; then
+        echo "$APP_LONG_NAME is still running PID: $pid - Please make sure to stop it before proceeding. . ."
+        exit 1
+    fi
+
+    echo -n "Please state the name of the service: [${SCRIPT_NAME}] "
+    read answer
+
+    if [ -z "$answer" ]; then
+        service_name=${SCRIPT_NAME}
+    else
+        service_name=$answer
+    fi
+
+    case $OS in
+        'linux')
+                if [ -f /etc/redhat-release ]; then
+                    echo -n "Removing $service_name from startup for RHEL ... "
+
+                    chkconfig --list $service_name > /dev/null 2>&1
+                    startupstatus=$?
+
+                    if [ $startupstatus -eq 0 ]; then
+
+                        chkconfig $service_name off
+                        chkconfig --del $service_name
+
+                        echo "[OK]"
+                    else
+                        echo "[FAILED]"
+                        echo "The $service_name daemon is not installed!"
+                        exit 1
+                    fi
+
+                elif [ -f /etc/lsb-release ]; then
+                    echo -n "Removing $service_name from startup for Ubuntu ... "
+
+                    update-rc.d -f $service_name remove
+                    startupstatus=$?
+
+                    if [ $startupstatus -eq 0 ]; then
+                        echo "[OK]"
+                    else
+                        echo "[FAILED]"
+                        echo "The $service_name daemon is not installed!"
+                        exit 1
+                    fi
+                else
+                    echo -n "Removing $service_name for Generic Linux OS startup ... "
+
+                    echo "rm -f /etc/rc3.d/S20$service_name"
+                    rm -f /etc/rc3.d/S20$service_name
+
+                    echo "rm -f /etc/rc3.d/K20$service_name"
+                    rm -f /etc/rc3.d/K20$service_name
+
+                    echo "rm -f /etc/rc5.d/S20$service_name"
+                    rm -f /etc/rc5.d/S20$service_name
+
+                    echo "rm -f /etc/rc5.d/K20$service_name"
+                    rm -f /etc/rc5.d/K20$service_name
+
+                    echo "[OK]"
+                fi
+
+                ;;
+
+        'solaris')
+                if [ ! -f /var/svc/manifest/site/${service_name}.xml ]; then
+                    echo "The $service_name daemon is not installed!"
+                    exit 1
+                fi
+
+                echo "Removing $service_name from Solaris SMF"
+
+                svccfg delete $service_name
+
+                ;;
+    esac
+
+    if [ ! -f /etc/init.d/${service_name} ]; then
+        echo "The $APP_LONG_NAME daemon is already removed from /etc/init.d"
+        exit 1
+    fi
+
+    rm /etc/init.d/${service_name}
+}
+
+dump()
+{
+    echo "Dumping $APP_LONG_NAME..."
+    getpid
+    if [ "X$pid" != "X" ]
+    then
+        kill -3 $pid
+
+        if [ $? -ne 0 ]
+        then
+            echo "Failed to dump $APP_LONG_NAME"
+            exit 1
+        else
+            echo "Dumped $APP_LONG_NAME successfully! Check the wrapper output log file!"
+        fi
+    else
+        echo "$APP_LONG_NAME is not running!"
+        exit 1
+    fi
+}
+
+signal()
+{
+    echo "Sending signal to $APP_LONG_NAME..."
+    getpid
+    if [ "X$pid" != "X" ]; then
+        kill -USR2 $pid
+
+        if [ $? -ne 0 ]
+        then
+            echo "Failed to send signal $APP_LONG_NAME"
+            exit 1
+        else
+            echo "Signal sent to $APP_LONG_NAME successfully! Check if the expected event occured in the log files!"
+        fi
+    else
+        echo "$APP_LONG_NAME is not running!"
+        exit 1
+    fi
+}
+
+createksh()
+{
+    echo "Adding ${service_name} ksh script @ ${SCRIPT}.ksh"
+
+    if [ -f ${SCRIPT}.ksh ]; then
+        rm -f ${SCRIPT}.ksh
+    fi
+
+    echo "#!/bin/ksh" > ${SCRIPT}.ksh
+    echo "" >> ${SCRIPT}.ksh
+    echo "case \"\$1\" in" >> ${SCRIPT}.ksh
+    echo "'start')" >> ${SCRIPT}.ksh
+    echo "        /bin/bash ${SCRIPT} start" >> ${SCRIPT}.ksh
+    echo "        EXIT_CODE=\$?" >> ${SCRIPT}.ksh
+    echo "        ;;" >> ${SCRIPT}.ksh
+    echo "" >> ${SCRIPT}.ksh
+    echo "'stop')" >> ${SCRIPT}.ksh
+    echo "        /bin/bash ${SCRIPT} stop" >> ${SCRIPT}.ksh
+    echo "        EXIT_CODE=\$?" >> ${SCRIPT}.ksh
+    echo "        ;;" >> ${SCRIPT}.ksh
+    echo "'status')" >> ${SCRIPT}.ksh
+    echo "        /bin/bash ${SCRIPT} status" >> ${SCRIPT}.ksh
+    echo "        status=\$?" >> ${SCRIPT}.ksh
+    echo "        if [ \$status = "0" ]; then" >> ${SCRIPT}.ksh
+    echo "                EXIT_CODE=0" >> ${SCRIPT}.ksh
+    echo "        else" >> ${SCRIPT}.ksh
+    echo "                EXIT_CODE=255" >> ${SCRIPT}.ksh
+    echo "        fi" >> ${SCRIPT}.ksh
+    echo "        ;;" >> ${SCRIPT}.ksh
+    echo "*)" >> ${SCRIPT}.ksh
+    echo "        echo \"Usage: $0 {start|stop|status}\"" >> ${SCRIPT}.ksh
+    echo "        EXIT_CODE=1" >> ${SCRIPT}.ksh
+    echo "        ;;" >> ${SCRIPT}.ksh
+    echo "esac" >> ${SCRIPT}.ksh
+    echo "exit \$EXIT_CODE" >> ${SCRIPT}.ksh
+
+    chmod +x ${SCRIPT}.ksh
+    chown ${RUN_AS_USER}:${RUN_AS_GROUP} ${SCRIPT}.ksh
+}
+
+console()
+{
+    echo "Starting [Console] $APP_LONG_NAME..."
+    getpid
+    if [ "X$pid" = "X" ]; then
+
+        $JSVC_CMD \
+            $JSVC_JAVA_HOME \
+            $JSVC_PID_FILE \
+            $JSVC_WAIT_TIME \
+            -nodetach \
+            -debug \
+            $JSVC_PROCNAME \
+            $JSVC_CLASSPATH \
+            $JSVC_JVM_OPTIONS \
+            $JSVC_SYSTEM_PROPERTIES \
+            $MAIN_CLASS \
+            $APPLICATION_ARGUMENTS
+
+    else
+        echo "$APP_LONG_NAME is already running."
+        exit 1
+    fi
+}
+
+start()
+{
+    echo "Starting $APP_LONG_NAME..."
+    getpid
+    if [ "X$pid" = "X" ]; then
+
+        $JSVC_CMD \
+            $JSVC_JAVA_HOME \
+            $JSVC_PID_FILE \
+            $JSVC_WAIT_TIME \
+            $JSVC_PROCNAME \
+            $JSVC_CLASSPATH \
+            $JSVC_JVM_OPTIONS \
+            $JSVC_SYSTEM_PROPERTIES \
+            $JSVC_LOGGING_OUT_PATH \
+            $JSVCLOGGING_OUT_VERBOSE \
+            $JSVC_LOGGING_ERR_PATH \
+            $MAIN_CLASS \
+            $APPLICATION_ARGUMENTS
+
+    else
+        echo "$APP_LONG_NAME is already running."
+        exit 1
+    fi
+}
+
+stop()
+{
+    echo "Stopping $APP_LONG_NAME..."
+    getpid
+    if [ "X$pid" != "X" ]; then
+
+        $JSVC_CMD \
+            $JSVC_JAVA_HOME \
+            $JSVC_PID_FILE \
+            $JSVC_WAIT_TIME \
+            $JSVC_PROCNAME \
+            -stop \
+            $JSVC_CLASSPATH \
+            $JSVC_JVM_OPTIONS \
+            $JSVC_SYSTEM_PROPERTIES \
+            $JSVC_LOGGING_OUT_PATH \
+            $JSVCLOGGING_OUT_VERBOSE \
+            $JSVC_LOGGING_ERR_PATH \
+            $MAIN_CLASS \
+            $APPLICATION_ARGUMENTS
+
+    else
+        echo "$APP_LONG_NAME is already stopped!"
+        exit 1
+    fi
+}
+
+stopforce()
+{
+    echo "Killing $APP_LONG_NAME..."
+    getpid
+    if [ "X$pid" != "X" ]; then
+        kill -9 $pid
+
+        if [ $? -ne 0 ]
+        then
+            echo "Failed to send kill to $APP_LONG_NAME"
+            exit 1
+        else
+            echo "$APP_LONG_NAME killed!"
+        fi
+    else
+        echo "$APP_LONG_NAME is not running!"
+        exit 1
+    fi
+}
+
+#----------------------------------------------------------------------------->
+# Script Main
+
+case $1 in
+    'console')
+        usercheck "0" $1
+        logscheck
+        console
+        ;;
+
+    'start')
+        logscheck
+        usercheck "1" $1
+        start
+        ;;
+
+    'stop')
+        usercheck "1" $1
+        stop
+        ;;
+
+    'stop-force')
+        usercheck "1" $1
+        stopforce
+        ;;
+
+    'restart')
+        usercheck "1" $1
+
+        getpid
+        if [ "X$pid" != "X" ]; then
+            stop
+        fi
+
+        # Give the server 1 minute to stop
+        sleeptillstopped 12 5
+
+        if [ $? = 0 ]; then
+            logscheck
+            start
+        else
+            echo -n "$APP_LONG_NAME hasn't stopped gracefully within 1 Minute... Do you want to force stop it ? [y/N]: "
+            read answer
+            if [ $answer = "y" -o $answer = "Y" ]; then
+                stopforce
+                start
+            fi
+        fi
+
+        ;;
+
+    'status')
+        status
+        ;;
+
+    'dump')
+        usercheck "0" $1
+        dump
+        ;;
+
+    'signal')
+        usercheck "0" $1
+        signal
+        ;;
+
+    'addstartup')
+        addstartup
+        ;;
+
+    'removestartup')
+        removestartup
+        ;;
+
+    'addlogrotate')
+        addlogrotate
+        ;;
+
+    'removelogrotate')
+        removelogrotate
+        ;;
+
+    'createksh')
+        createksh
+        ;;
+
+    'addinitd')
+        addinitd
+        ;;
+
+    'removeinitd')
+        removeinitd
+        ;;
+    *)
+        echo "Usage: $0 { console | start | stop | stop-force | restart | status | dump | signal | addstartup | removestartup | addlogrotate | removelogrotate | createksh | addinitd | removeinitd }"
+        exit 1
+        ;;
+esac
+
+exit 0
+
+#
+#<-----------------------------------------------------------------------------

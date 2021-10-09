@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testng-results skipped="0" failed="0" ignored="1" total="1" passed="0">
+  <reporter-output>
+  </reporter-output>
+  <suite name="ba.com.zira.praksa.test.GameDaoTest" duration-ms="3" started-at="2021-07-30T00:41:37 CEST" finished-at="2021-07-30T00:41:37 CEST">
+    <groups>
+    </groups>
+    <test name="Command line test" duration-ms="3" started-at="2021-07-30T00:41:37 CEST" finished-at="2021-07-30T00:41:37 CEST">
+      <class name="ba.com.zira.praksa.test.GameDaoTest">
+        <test-method status="PASS" signature="beforeSuiteMethod()[pri:0, instance:ba.com.zira.praksa.test.GameDaoTest@2925bf5b]" name="beforeSuiteMethod" is-config="true" duration-ms="11" started-at="2021-07-30T00:41:37 CEST" finished-at="2021-07-30T00:41:37 CEST">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- beforeSuiteMethod -->
+        <test-method status="PASS" signature="afterSuiteMethod()[pri:0, instance:ba.com.zira.praksa.test.GameDaoTest@2925bf5b]" name="afterSuiteMethod" is-config="true" duration-ms="0" started-at="2021-07-30T00:41:37 CEST" finished-at="2021-07-30T00:41:37 CEST">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- afterSuiteMethod -->
+      </class> <!-- ba.com.zira.praksa.test.GameDaoTest -->
+    </test> <!-- Command line test -->
+  </suite> <!-- ba.com.zira.praksa.test.GameDaoTest -->
+</testng-results>

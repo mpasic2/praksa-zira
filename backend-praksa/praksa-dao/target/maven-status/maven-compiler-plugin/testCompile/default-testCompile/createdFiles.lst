@@ -1,0 +1,4 @@
+ba\com\zira\praksa\test\GameDaoTest.class
+ba\com\zira\praksa\test\configuration\ApplicationTestConfiguration.class
+ba\com\zira\praksa\test\configuration\BasicTestConfiguration.class
+ba\com\zira\praksa\test\configuration\hibernate\HibernateConfiguration.class

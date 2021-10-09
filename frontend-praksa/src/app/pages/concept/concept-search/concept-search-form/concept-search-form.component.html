@@ -1,0 +1,32 @@
+<div class="form">
+    <p>Search Concepts:</p>
+    <form #conceptsearchform="ngForm" (ngSubmit)="search()">
+        <div class="formRow">
+            <label for="name">Name:</label>
+            <input [(ngModel)]="searchObject.name" name="name" id="name" type="text" placeholder="Concept name">
+        </div>
+
+        <div class="formRow">
+            <angular2-multiselect [data]="game.dropdownList" [(ngModel)]="game.selectedItems" [settings]="settings.get('game')" (onScrollToEnd)="fetchMore($event)" name="games">
+                <c-search>
+                    <ng-template>
+                        <input type="text" [(ngModel)]="filter" (keyup)="onSearch($event)" placeholder="Search games" style="border: none;width: 100%; height: 100%;outline: none;" name="serach" />
+                    </ng-template>
+                </c-search>
+            </angular2-multiselect>
+        </div>
+
+        <div class="formRow">
+            <angular2-multiselect name="characters" [settings]="settings.get('character')" [data]="character.dropdownList" [(ngModel)]="character.selectedItems"></angular2-multiselect>
+        </div>
+
+        <div class="formRow">
+            <angular2-multiselect name="sort" [settings]="sortSettings" [data]="sort.dropdownList" [(ngModel)]="sort.selectedItems"></angular2-multiselect>
+        </div>
+
+        <div class="formRow">
+            <button type="reset" (click)="cancel()" class="btn-zira clear">Clear</button>
+            <button type="submit" class="btn-zira">Search</button>
+        </div>
+    </form>
+</div>

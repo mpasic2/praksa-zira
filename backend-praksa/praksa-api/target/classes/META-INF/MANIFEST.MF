@@ -1,0 +1,18 @@
+Manifest-Version: 1.0
+Date: 2109241446
+Implementation-Title: ba.com.zira.praksa.praksa-api
+Implementation-Version: 1.0.0-SNAPSHOT
+Implementation-Build: 2109241446.${git.commitsCount}.${git.shortRevisi
+ on}
+Class-Path: zira-commons-model-3.0-SNAPSHOT.jar jackson-databind-2.10.
+ 2.jar jackson-annotations-2.10.2.jar jackson-core-2.10.2.jar jackson-
+ datatype-jsr310-2.10.3.jar javax.servlet-api-4.0.1.jar commons-io-2.6
+ .jar rome-1.15.0.jar rome-utils-1.15.0.jar jdom2-2.0.6.jar slf4j-api-
+ 1.7.29.jar
+Build-Jdk-Spec: 1.8
+Created-By: Maven Integration for Eclipse
+Implementation-URL: http://gitlab.zira/zira-commons/maven-settings.git
+ /maven-versions/maven-project/praksa/praksa-api
+Implementation-Vendor: ZIRA Ltd.
+Revision: 
+

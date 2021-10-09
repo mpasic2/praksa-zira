@@ -1,0 +1,49 @@
+<div class="container">
+    <div class="header">
+        <h4>Add/edit franchise</h4>
+    </div>
+    <form #franchiseForm="ngForm" (ngSubmit)="saveFranchise()" novalidate>
+        <div class="box">
+            <label class="col-sm-2 col-form-label" for="name">Name:</label>
+            <div class="col-sm-10">
+                <input #name="ngModel" [(ngModel)]="franchiseCreateRequest.name" style="width: 100%;" id="name" type="text" class="form-control" placeholder="Name" name="name">
+            </div>
+        </div>
+
+        <div class="box">
+            <label style="width: 184px; padding-left: 15px;" for="informations">Franchise information:</label>
+            <div class="col-sm-9">
+                <input [(ngModel)]="franchiseCreateRequest.information" style="width: 111.4%;" id="information" type="text" class="form-control"
+                    placeholder="Information" name="information" >
+            </div>
+        </div>
+
+        <div class="box"> 
+            <label class="col-sm-2 col-form-label" for="outlineText">Outline:</label>
+            <div class="col-sm-10">
+                <textarea [(ngModel)]="franchiseCreateRequest.outlineText" id="outline" name="outlineText" rows="2" type="text" class="form-control"
+                    placeholder="Outline"></textarea>
+            </div>
+        </div>
+        <div class="box">
+            <label class="col-sm-2 col-form-label" style="padding-right: 185px;" for="gamesIds">Games:</label>
+            <select [(ngModel)]="franchiseCreateRequest.gamesIds" [(ngModel)]="searchObject.games" id="games" name="gamesIds" multiple>
+                <option *ngFor="let game of gameSelect" [value]="game.id">{{game.name}}</option>
+            </select>
+        </div>
+
+        <div class="box">
+            <label class="col-sm-2 col-form-label" for="aliases">Aliases:</label>
+            <div class="col-sm-10">
+                <input [(ngModel)]="franchiseCreateRequest.aliases" id="aliases" type="text" class="form-control" placeholder="Aliases" name="aliases">
+            </div>
+        </div>
+
+
+        <div class="col">
+            <button type="submit" class="btn btn-zira col-sm-2 offset-sm-8">Save</button>
+            <button (click)="cancel()" type="reset" class="btn btn-zira col-sm-2">Cancel</button>
+        </div>
+
+    </form>
+</div>

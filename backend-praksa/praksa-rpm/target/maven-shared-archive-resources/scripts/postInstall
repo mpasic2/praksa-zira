@@ -1,0 +1,103 @@
+# ----- Variable: Colors ------------------------------------------------------
+NC="\033[m"
+
+BLACK="\033[0;30m"
+BLUE="\033[0;34m"
+GREEN="\033[0;32m"
+CYAN="\033[0;36m"
+RED="\033[0;31m"
+PURPLE="\033[0;35m"
+ORANGE="\033[0;33m"
+LGRAY="\033[0;37m"
+DGRAY="\033[1;30m"
+LBLUE="\033[1;34m"
+LGREEN="\033[1;32m"
+LCYAN="\033[1;36m"
+LRED="\033[1;31m"
+LPURPLE="\033[1;35m"
+YELLOW="\033[1;33m"
+WHITE="\033[1;37m"
+
+
+
+C_NOTE=$GREEN
+C_ERROR=$RED
+# -----------------------------------------------------------------------------
+
+echo -e "${BLUE}===============================================================================${NC}"
+echo -e "${BLUE}POST-INSTALL ...${NC}"
+
+
+# ----- VARIABLES ----------------------------------------------------------------------------------------------------
+BACKUP_DIR="/backup"
+# --------------------------------------------------------------------------------------------------------------------
+
+
+# ----- Create symbolic link for /etc/init.d -------------------------------------------------------------------------
+echo -e "${C_NOTE}Create symbolic link... ${NC}"
+ln -sf %{APP_ROOT}/%{APP_SCRIPT_NAME} /etc/init.d/%{APP_SCRIPT_NAME}                                 # Create symbolic link for /etc/init.d
+# --------------------------------------------------------------------------------------------------------------------
+
+
+# ----- Log directories ----------------------------------------------------------------------------------------------
+echo -e "${C_NOTE}Create log directory %{APP_LOG_ROOT} ...${NC}"
+mkdir -p                          %{APP_LOG_ROOT}                                                    # Create log directory Example: /var/log/zira/<component>/<version>
+chown -R %{APP_USER}:%{APP_GROUP} %{APP_LOG_ROOT}                                                    # chown -R log directory
+
+chmod 0755 %{APP_ROOT}/%{APP_SCRIPT_NAME}                                                            # chown +x StartUp script 32-bit
+chmod 0755 %{APP_ROOT}/%{APP_SCRIPT_NAME}-linux-x86-64                                               # chown +x StartUp script 64-bit
+
+echo -e "${C_NOTE}Create symbolic link  %{APP_LOG_ROOT} %{APP_ROOT}/logs ...${NC}"
+ln -sf %{APP_LOG_ROOT}            %{APP_ROOT}/logs                                                   # Symbolict link zira log folder of application
+chown -R %{APP_USER}:%{APP_GROUP} %{APP_ROOT}                                                        # chown -R directory fo application
+# --------------------------------------------------------------------------------------------------------------------
+
+
+# ----- Delete directroy /tmp/zira_restore if exist
+if [ -d /tmp/zira_restore ]; then
+   echo -e "${C_NOTE}Delete directory: /tmp/zira_restore ...${NC}"
+   rm -Rf /tmp/zira_restore
+fi
+# -------------------------------------------------
+
+
+# ----- Restore override.properties ----------------------------------------------------------------------------------
+echo "Backup file: "$(ls -t $BACKUP_DIR/%{APP_GROUP}/%{APP_NAME}/*.tar 2>/dev/null |head -1)
+RESTORE_FILE=$(ls -t $BACKUP_DIR/%{APP_GROUP}/%{APP_NAME}/*.tar 2>/dev/null |head -1)                                          # Get last created TAR file
+
+if  [[ !  -z  $RESTORE_FILE  ]]; then                                                                                          # If exist TAR file
+   echo -e "${C_NOTE}Restore %{OVERRIDE_PROPERTIES_FILE} ...${NC}"
+   mkdir -p     /tmp/zira_restore                                                                                              # Create temporary directory for restore
+   /bin/tar -C /tmp/zira_restore/ -xf $RESTORE_FILE '*%{OVERRIDE_PROPERTIES_FILE}'                                             # Extract override.properties
+   /bin/find   /tmp/zira_restore/ -name %{OVERRIDE_PROPERTIES_FILE} -type f -exec cp {}  %{APP_ROOT}/configuration/ \;         # Restore override.
+
+   echo -e "${C_NOTE}Restore %{WRAPPER_OVERRIDE_CONF_FILE}...${NC}"
+   /bin/tar -C /tmp/zira_restore/ -xf $RESTORE_FILE '*%{WRAPPER_OVERRIDE_CONF_FILE}'                                           # Extract wrapper-override.conf
+   /bin/find   /tmp/zira_restore/ -name %{WRAPPER_OVERRIDE_CONF_FILE} -type f -exec cp {}  %{APP_ROOT}/configuration/ \;       # Restore wrapper-override.conf
+   
+   echo -e "${C_NOTE}Restore %{OVERRIDE_BOOTSTRAP_PROPERTIES_FILE}...${NC}"
+   /bin/tar -C /tmp/zira_restore/ -xf $RESTORE_FILE '*%{OVERRIDE_BOOTSTRAP_PROPERTIES_FILE}'                                           # Extract bootstrap-override.conf
+   /bin/find   /tmp/zira_restore/ -name %{OVERRIDE_BOOTSTRAP_PROPERTIES_FILE} -type f -exec cp {}  %{APP_ROOT}/configuration/ \;       # Restore bootstrap-override.conf
+   
+   chown -R %{APP_USER}:%{APP_GROUP} %{APP_ROOT}/configuration/%{OVERRIDE_PROPERTIES_FILE}                                     # chown -R override.properties
+   chown -R %{APP_USER}:%{APP_GROUP} %{APP_ROOT}/configuration/%{OVERRIDE_BOOTSTRAP_PROPERTIES_FILE}                                     # chown -R bootstrap.properties
+   chown -R %{APP_USER}:%{APP_GROUP} %{APP_ROOT}/configuration/%{WRAPPER_OVERRIDE_CONF_FILE}                                   # chown -R wrapper-override.conf
+
+   echo -e "${C_NOTE}Delete directory: /tmp/zira_restore ...${NC}"
+   rm -Rf /tmp/zira_restore                                                                                                    # Delete temporary directory for restore
+fi
+# --------------------------------------------------------------------------------------------------------------------
+
+
+# ----- Add to startUp -----------------------------------------------------------------------------------------------
+echo -e "${C_NOTE}Add %{APP_ROOT}/%{APP_SCRIPT_NAME} to Bootup ...${NC}"
+%{APP_ROOT}/%{APP_SCRIPT_NAME} addstartup                                                            # Add script to BootUp
+
+
+if [ $1 -eq 1 ]; then                                                                                # If install
+   echo -e "${C_NOTE}Add logrotation %{APP_ROOT}/%{APP_SCRIPT_NAME} ...${NC}"
+   %{APP_ROOT}/%{APP_SCRIPT_NAME}  addlogrotate                                                      # Add logrotation files
+fi
+# --------------------------------------------------------------------------------------------------------------------
+
+echo -e "${C_NOTE}%{APP_DESCRIPTION} successfully installed!${NC}"

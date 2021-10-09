@@ -1,0 +1,108 @@
+# ----- Variable: Colors ------------------------------------------------------
+NC="\033[m"
+
+BLACK="\033[0;30m"
+BLUE="\033[0;34m"
+GREEN="\033[0;32m"
+CYAN="\033[0;36m"
+RED="\033[0;31m"
+PURPLE="\033[0;35m"
+ORANGE="\033[0;33m"
+LGRAY="\033[0;37m"
+DGRAY="\033[1;30m"
+LBLUE="\033[1;34m"
+LGREEN="\033[1;32m"
+LCYAN="\033[1;36m"
+LRED="\033[1;31m"
+LPURPLE="\033[1;35m"
+YELLOW="\033[1;33m"
+WHITE="\033[1;37m"
+
+
+
+C_NOTE=$GREEN
+C_ERROR=$RED
+# -----------------------------------------------------------------------------
+
+
+echo -e "${BLUE}===============================================================================${NC}"
+echo -e "${BLUE}PRE_INSTALL ...${NC}"
+
+
+# ----- VARIABLES ----------------------------------------------------------------------------------------------------
+BACKUP_DIR="/backup"
+VER_RELEASE=$(/bin/rpm -qa %{APP_NAME})                     # Example /bin/rpm -qa zira-mvno-ar   --->   zira-mvno-ar-6.2.2-1511091105.x86_64
+# --------------------------------------------------------------------------------------------------------------------
+
+
+# ----- STOP and remove from startup ---------------------------------------------------------------------------------
+if [ -f %{APP_ROOT}/%{APP_SCRIPT_NAME} ]; then              # If file exist
+   # ----- STOP service
+   echo -e "${C_NOTE}STOPPING %{APP_ROOT}/%{APP_SCRIPT_NAME} service...${NC}"
+   %{APP_ROOT}/%{APP_SCRIPT_NAME} stop                      # STOP
+   if [[ $? -ne 0 ]]; then
+      echo -e "${C_ERROR}ERROR to stop service %{APP_ROOT}/%{APP_SCRIPT_NAME} or service is already stopped${NC}"
+   else
+      echo -e "${C_NOTE}Service %{APP_ROOT}/%{APP_SCRIPT_NAME} is stopped${NC}"
+   fi
+
+   # ----- Remove service from StartUp
+   echo -e "${C_NOTE}Remove service %{APP_ROOT}/%{APP_SCRIPT_NAME} from startup...${NC}"
+   %{APP_ROOT}/%{APP_SCRIPT_NAME} removestartup             # Remove from startup
+   if [[ $? -ne 0 ]]; then
+      echo -e "${C_ERROR}ERROR to remove service %{APP_ROOT}/%{APP_SCRIPT_NAME} from startup${NC}"
+   else
+      echo -e "${C_NOTE}Service %{APP_ROOT}/%{APP_SCRIPT_NAME} is removed from startup${NC}"
+   fi
+fi
+# --------------------------------------------------------------------------------------------------------------------
+
+
+# ----- Create backup directory if doesn't exist ---------------------------------------------------------------------
+if [ ! -d "$BACKUP_DIR/%{APP_GROUP}/%{APP_NAME}" ]; then
+   echo -e "${C_NOTE}Create directory: $BACKUP_DIR/%{APP_GROUP}/%{APP_NAME}${NC}"
+   mkdir -p $BACKUP_DIR/%{APP_GROUP}/%{APP_NAME}                                                                                              # mkdir -p /backup/zira/<app_name>
+fi
+# --------------------------------------------------------------------------------------------------------------------
+
+
+# ----- Backup configuration directory -------------------------------------------------------------------------------
+if [ -d %{APP_ROOT}/%{OVERRIDE_PROPERTIES_FOLDER} ]; then                                                                                     # If directory configurtion exist
+   echo -e "${C_NOTE}Create backup for %{APP_ROOT}/configuration to $BACKUP_DIR/%{APP_GROUP}/%{APP_NAME}/$VER_RELEASE.tar ...${NC}"
+   /bin/tar -P -rvf $BACKUP_DIR/%{APP_GROUP}/%{APP_NAME}/$VER_RELEASE.tar %{APP_ROOT}/configuration                                           # tar overidde.properties (append)
+fi
+# --------------------------------------------------------------------------------------------------------------------
+
+# ----- Backup dbscripts directory -----------------------------------------------------------------------------------
+if [ -d %{APP_ROOT}/dbscripts ]; then                                                                                                         # If directory dbscripts exist
+   echo -e "${C_NOTE}Create backup for %{APP_ROOT}/dbscripts to $BACKUP_DIR/%{APP_GROUP}/%{APP_NAME}/$VER_RELEASE.tar$ ...{NC}"
+   /bin/tar -P -rvf $BACKUP_DIR/%{APP_GROUP}/%{APP_NAME}/$VER_RELEASE.tar %{APP_ROOT}/dbscripts                                               # tar overidde.properties (append)
+fi
+# --------------------------------------------------------------------------------------------------------------------
+
+
+# ----- Delete Application directory: Example: /opt/zira/ar/6.2.2 ----------------------------------------------------
+if [ -d %{APP_ROOT} ]; then
+   echo -e "${C_NOTE}Delete Application directory %{APP_ROOT} ...${NC}"
+   rm -Rf %{APP_ROOT}
+fi
+# --------------------------------------------------------------------------------------------------------------------
+
+
+# ----- Delete Log directory: Example: /var/log/zira/ar/6.2.2 --------------------------------------------------------
+if [ -d %{APP_LOG_ROOT} ]; then
+    echo -e "${C_NOTE}Delete Log directory %{APP_LOG_ROOT} ...${NC}"
+    rm -Rf %{APP_LOG_ROOT}
+fi
+# --------------------------------------------------------------------------------------------------------------------
+
+
+# ----- Add group and user if doesn't exist --------------------------------------------------------------------------
+echo -e "${C_NOTE}Add group \"%{APP_GROUP}\" and user \"%{APP_USER}\" if doesn't exist ...${NC}"
+getent group %{APP_GROUP} >/dev/null || groupadd -r %{APP_GROUP}
+getent passwd %{APP_USER} >/dev/null || \
+useradd -g %{APP_GROUP} -c "%{APP_USER} user" %{APP_USER}
+passwd -l %{APP_USER} 2> /dev/null
+# --------------------------------------------------------------------------------------------------------------------
+
+exit 0
